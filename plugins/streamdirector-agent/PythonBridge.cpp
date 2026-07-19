@@ -155,6 +155,67 @@ static PyObject *sd_set_current_scene(PyObject *self, PyObject *args)
 	return result;
 }
 
+static PyObject *sd_get_preview_scene(PyObject *self, PyObject *args)
+{
+	obs_source_t *scene = obs_frontend_get_current_preview_scene();
+	if (!scene) {
+		Py_RETURN_NONE;
+	}
+	const char *name = obs_source_get_name(scene);
+	PyObject *result = PyUnicode_FromString(name ? name : "");
+	obs_source_release(scene);
+	return result;
+}
+
+static PyObject *sd_is_studio_mode(PyObject *self, PyObject *args)
+{
+	if (obs_frontend_preview_enabled()) {
+		Py_RETURN_TRUE;
+	}
+	Py_RETURN_FALSE;
+}
+
+static PyObject *sd_get_scene_audio_sources(PyObject *self, PyObject *args)
+{
+	const char *scene_name;
+	if (!PyArg_ParseTuple(args, "s", &scene_name))
+		return nullptr;
+
+	obs_source_t *scene_source = obs_get_source_by_name(scene_name);
+	if (!scene_source) {
+		Py_RETURN_NONE;
+	}
+
+	obs_scene_t *scene = obs_scene_from_source(scene_source);
+	if (!scene) {
+		obs_source_release(scene_source);
+		Py_RETURN_NONE;
+	}
+
+	PyObject *list = PyList_New(0);
+
+	obs_scene_enum_items(
+		scene,
+		[](obs_scene_t *, obs_sceneitem_t *item, void *param) {
+			obs_source_t *source = obs_sceneitem_get_source(item);
+			if (!source)
+				return true;
+
+			uint32_t flags = obs_source_get_output_flags(source);
+			if (flags & OBS_SOURCE_AUDIO) {
+				const char *name = obs_source_get_name(source);
+				if (name) {
+					PyList_Append((PyObject *)param, PyUnicode_FromString(name));
+				}
+			}
+			return true;
+		},
+		list);
+
+	obs_source_release(scene_source);
+	return list;
+}
+
 /* --- Streaming --- */
 
 static PyObject *sd_start_streaming(PyObject *self, PyObject *args)
@@ -366,6 +427,9 @@ static PyMethodDef SDMethods[] = {
 	{"get_scene_names", sd_get_scene_names, METH_NOARGS, "Get list of scene names"},
 	{"get_current_scene", sd_get_current_scene, METH_NOARGS, "Get current scene name"},
 	{"set_current_scene", sd_set_current_scene, METH_VARARGS, "Switch to scene by name"},
+	{"get_preview_scene", sd_get_preview_scene, METH_NOARGS, "Get Studio Mode preview scene name"},
+	{"is_studio_mode", sd_is_studio_mode, METH_NOARGS, "Check if Studio Mode is enabled"},
+	{"get_scene_audio_sources", sd_get_scene_audio_sources, METH_VARARGS, "Get audio source names within a specific scene"},
 	{"start_streaming", sd_start_streaming, METH_NOARGS, "Start streaming"},
 	{"stop_streaming", sd_stop_streaming, METH_NOARGS, "Stop streaming"},
 	{"is_streaming", sd_is_streaming, METH_NOARGS, "Check if streaming is active"},

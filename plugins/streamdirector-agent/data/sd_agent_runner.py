@@ -312,8 +312,8 @@ def run_agent(instruction: str, mode: str = "responsive") -> str:
             import threading
             from sd_autonomous_agent import run_autonomous_agent
             stop_event = threading.Event()
-            # Run in blocking mode - the C++ side manages the thread
             return run_autonomous_agent(
+                instruction=instruction,
                 stop_event=stop_event,
                 log_func=api.log,
             )
