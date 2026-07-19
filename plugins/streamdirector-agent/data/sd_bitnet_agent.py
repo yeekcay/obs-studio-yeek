@@ -425,11 +425,75 @@ Instruction: get stats
 {"tool": "get_stats", "args": {}}"""
 
 
+# --- Keyword fast path (bypasses LLM for common commands) ---
+
+def _try_keyword_match(instruction: str):
+    """
+    Try to match common instructions directly without calling the LLM.
+    Returns (tool_name, tool_args, matched) or (None, None, False).
+    """
+    text = instruction.lower().strip().strip("'\"")
+
+    # Streaming
+    if text in ("go live", "start stream", "start streaming", "go online"):
+        return "start_streaming", {}, True
+    if text in ("stop stream", "stop streaming", "stop the stream", "end stream",
+                "go offline", "end streaming", "stop going live"):
+        return "stop_streaming", {}, True
+
+    # Recording
+    if text in ("start recording", "begin recording", "record"):
+        return "start_recording", {}, True
+    if text in ("stop recording", "end recording", "stop record"):
+        return "stop_recording", {}, True
+
+    # Status
+    if text in ("status", "what is my status", "what's my status",
+                "current status", "stream status", "check status"):
+        return "get_status", {}, True
+
+    # Scenes
+    if text in ("list scenes", "scenes", "show scenes", "what scenes",
+                "get scenes", "scene list"):
+        return "list_scenes", {}, True
+
+    # Scene switching — extract scene name
+    if text.startswith("switch to ") or text.startswith("change to ") or text.startswith("switch scene to "):
+        scene_name = instruction.strip()
+        for prefix in ("switch to ", "change to ", "switch scene to ",
+                       "Switch to ", "Change to ", "Switch scene to "):
+            if scene_name.startswith(prefix):
+                scene_name = scene_name[len(prefix):]
+                break
+        scene_name = scene_name.strip().strip("'\"")
+        if scene_name:
+            return "switch_scene", {"scene_name": scene_name}, True
+
+    # Audio sources
+    if text in ("list audio", "audio sources", "show audio", "list audio sources",
+                "audio", "get audio"):
+        return "list_audio_sources", {}, True
+
+    # Mute/unmute
+    if text in ("mute", "mute mic", "mute my mic", "mute microphone"):
+        return "set_mute", {"source_name": "Mic/Aux", "muted": True}, True
+    if text in ("unmute", "unmute mic", "unmute my mic", "unmute microphone"):
+        return "set_mute", {"source_name": "Mic/Aux", "muted": False}, True
+
+    # Stats
+    if text in ("stats", "get stats", "performance", "frame stats",
+                "dropped frames", "show stats"):
+        return "get_stats", {}, True
+
+    return None, None, False
+
+
 # --- Main agent loop ---
 
 def run_bitnet_agent(instruction: str, server_url: str = None) -> str:
     """
     Run a single-turn agent: instruction → LLM → tool call → execution → result.
+    Uses keyword matching first for common commands, falls back to LLM.
 
     Args:
         instruction: Natural language instruction from the user
@@ -446,7 +510,29 @@ def run_bitnet_agent(instruction: str, server_url: str = None) -> str:
         server_url = os.environ.get("BITNET_SERVER_URL", "http://127.0.0.1:8080")
 
     api.log(f"[bitnet-agent] Instruction: {instruction}")
-    api.log(f"[bitnet-agent] Server: {server_url}")
+
+    # Try keyword fast path first
+    tool_name, tool_args, matched = _try_keyword_match(instruction)
+    if matched:
+        api.log(f"[bitnet-agent] Keyword match: {tool_name}({tool_args})")
+        result = _execute_tool(tool_name, tool_args)
+        api.log(f"[bitnet-agent] Result: {result}")
+
+        # Auto start/stop recording with streaming
+        instruction_lower = instruction.lower().strip()
+        if tool_name == "start_streaming" and not api.is_recording():
+            api.log("[bitnet-agent] Auto-starting recording for 'go live'")
+            rec_result = _execute_tool("start_recording", {})
+            result += f"\n{rec_result}"
+        elif tool_name == "stop_streaming" and api.is_recording():
+            api.log("[bitnet-agent] Auto-stopping recording for 'stop stream'")
+            rec_result = _execute_tool("stop_recording", {})
+            result += f"\n{rec_result}"
+
+        return result
+
+    # Fall back to LLM for complex instructions
+    api.log(f"[bitnet-agent] No keyword match, using LLM. Server: {server_url}")
 
     system_prompt = _build_system_prompt()
 
