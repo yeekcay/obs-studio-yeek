@@ -7,6 +7,7 @@
 #include <QSlider>
 #include <QTimer>
 #include <QTextEdit>
+#include <QCheckBox>
 #include <string>
 
 class AudioSwitcherDock : public QDockWidget {
@@ -23,11 +24,19 @@ private slots:
 	void onCheckLevels();
 	void onThresholdChanged(int value);
 	void onSustainChanged(int value);
+	void onMotionSensitivityChanged(int value);
+	void onMotionSustainChanged(int value);
 
 private:
 	void PopulateScenes();
 	void PopulateSources();
+	void PopulateVideoSources();
 	void Log(const QString &text);
+
+	/* Video motion detection */
+	float CheckVideoMotion(const QString &sourceName);
+	void InitVideoResources();
+	void DestroyVideoResources();
 
 	QComboBox *sceneACombo_;
 	QComboBox *sceneBCombo_;
@@ -52,11 +61,34 @@ private:
 
 	QTimer *checkTimer_;
 
-	/* State */
+	/* Video motion UI */
+	QCheckBox *videoEnableCheck_;
+	QComboBox *videoSourceCombo_;
+	QComboBox *videoSceneCombo_;
+	QSlider *motionSensSlider_;
+	QSlider *motionSustainSlider_;
+	QLabel *motionSensLabel_;
+	QLabel *motionSustainLabel_;
+	QLabel *motionLevelLabel_;
+
+	/* State - audio */
 	float thresholdDb_;
 	float sustainSecs_;
 	float aDominantSince_;
 	float bDominantSince_;
 	int switchCount_;
 	bool running_;
+
+	/* State - video motion */
+	float motionSensitivity_;
+	float motionSustainSecs_;
+	float motionDominantSince_;
+	float lastMotionLevel_;
+	bool videoResourcesReady_;
+
+	/* Graphics resources (opaque pointers, cast in .cpp) */
+	void *videoTexrender_;
+	void *videoStaging_;
+	uint8_t *prevFrame_;
+	bool hasPrevFrame_;
 };
