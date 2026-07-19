@@ -45,7 +45,6 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 {
 	setObjectName("AudioSceneSwitcher");
 	setAllowedAreas(Qt::AllDockWidgetAreas);
-	setTitleBarWidget(new QWidget());
 
 	QWidget *container = new QWidget(this);
 	setWidget(container);
@@ -245,17 +244,42 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 	connect(streamQualityEnableCheck_, &QCheckBox::checkStateChanged, this, &AudioSwitcherDock::onStreamQualityEnableChanged);
 	connect(bitrateThresholdSlider_, &QSlider::valueChanged, this, &AudioSwitcherDock::onBitrateThresholdChanged);
 
-	/* Initial population */
-	PopulateScenes();
-	PopulateSources();
-	PopulateVideoSources();
+	/* Initial population - deferred until OBS finishes loading scenes */
+	obs_frontend_add_event_callback(
+		[](enum obs_frontend_event event, void *param) {
+			auto *dock = static_cast<AudioSwitcherDock *>(param);
+			dock->onFrontendEvent(event);
+		},
+		this);
 }
 
 AudioSwitcherDock::~AudioSwitcherDock()
 {
 	if (checkTimer_)
 		checkTimer_->stop();
+	obs_frontend_remove_event_callback(
+		[](enum obs_frontend_event event, void *param) {
+			auto *dock = static_cast<AudioSwitcherDock *>(param);
+			dock->onFrontendEvent(event);
+		},
+		this);
 	DestroyVideoResources();
+}
+
+void AudioSwitcherDock::onFrontendEvent(enum obs_frontend_event event)
+{
+	if (event == OBS_FRONTEND_EVENT_FINISHED_LOADING ||
+	    event == OBS_FRONTEND_EVENT_SCENE_CHANGED ||
+	    event == OBS_FRONTEND_EVENT_SCENE_LIST_CHANGED) {
+		PopulateAll();
+	}
+}
+
+void AudioSwitcherDock::PopulateAll()
+{
+	PopulateScenes();
+	PopulateSources();
+	PopulateVideoSources();
 }
 
 void AudioSwitcherDock::Log(const QString &text)

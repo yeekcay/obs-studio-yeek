@@ -10,6 +10,8 @@
 #include <QCheckBox>
 #include <string>
 
+#include <obs-frontend-api.h>
+
 class AudioSwitcherDock : public QDockWidget {
 	Q_OBJECT
 
@@ -31,6 +33,8 @@ private slots:
 
 private:
 	void PopulateScenes();
+	void PopulateAll();
+	void onFrontendEvent(enum obs_frontend_event event);
 	void PopulateSources();
 	void PopulateVideoSources();
 	void Log(const QString &text);
