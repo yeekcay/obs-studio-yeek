@@ -51,19 +51,20 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 
 	QScrollArea *scrollArea = new QScrollArea(this);
 	scrollArea->setWidgetResizable(true);
+	scrollArea->setFrameShape(QFrame::NoFrame);
 	scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
 	QWidget *container = new QWidget();
-	container->setMinimumWidth(260);
 	scrollArea->setWidget(container);
 	setWidget(scrollArea);
 
 	QVBoxLayout *mainLayout = new QVBoxLayout(container);
-	mainLayout->setContentsMargins(4, 4, 4, 4);
+	mainLayout->setContentsMargins(6, 6, 6, 6);
 
 	/* --- Scene Selection --- */
 	QGroupBox *sceneGroup = new QGroupBox("Scene Selection", container);
 	QGridLayout *sceneLayout = new QGridLayout(sceneGroup);
+	sceneLayout->setColumnStretch(1, 1);
 
 	sceneLayout->addWidget(new QLabel("Scene A:", sceneGroup), 0, 0);
 	sceneACombo_ = new QComboBox(sceneGroup);
@@ -78,6 +79,7 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 	/* --- Source Selection --- */
 	QGroupBox *sourceGroup = new QGroupBox("Audio Sources to Monitor", container);
 	QGridLayout *sourceLayout = new QGridLayout(sourceGroup);
+	sourceLayout->setColumnStretch(1, 1);
 
 	sourceLayout->addWidget(new QLabel("Source A:", sourceGroup), 0, 0);
 	sourceACombo_ = new QComboBox(sourceGroup);
@@ -162,6 +164,7 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 	videoLayout->addWidget(videoEnableCheck_);
 
 	QGridLayout *videoGrid = new QGridLayout();
+	videoGrid->setColumnStretch(1, 1);
 	videoGrid->addWidget(new QLabel("Monitor source:", videoGroup), 0, 0);
 	videoSourceCombo_ = new QComboBox(videoGroup);
 	videoGrid->addWidget(videoSourceCombo_, 0, 1);
@@ -202,6 +205,7 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 	streamLayout->addWidget(streamQualityEnableCheck_);
 
 	QGridLayout *streamGrid = new QGridLayout();
+	streamGrid->setColumnStretch(1, 1);
 	streamGrid->addWidget(new QLabel("Switch to scene:", streamGroup), 0, 0);
 	streamQualitySceneCombo_ = new QComboBox(streamGroup);
 	streamGrid->addWidget(streamQualitySceneCombo_, 0, 1);
