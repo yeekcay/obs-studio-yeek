@@ -53,9 +53,9 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 	outerLayout->setContentsMargins(0, 0, 0, 0);
 
 	QScrollArea *scrollArea = new QScrollArea(container);
-	scrollArea->setWidgetResizable(true);
+	scrollArea->setWidgetResizable(false);
 	scrollArea->setFrameShape(QFrame::NoFrame);
-	scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+	scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
 	QWidget *content = new QWidget();
 	scrollArea->setWidget(content);
