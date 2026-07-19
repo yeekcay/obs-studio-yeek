@@ -283,13 +283,27 @@ def run_agent(instruction: str, mode: str = "responsive") -> str:
 
     Args:
         instruction: Natural language instruction for the agent.
-        mode: Agent mode - "responsive" (only do what asked) or "autonomous" (full crew pipeline).
+        mode: Agent mode - "responsive", "autonomous" (CrewAI), or "bitnet" (custom lightweight loop).
 
     Returns:
         String result from the agent execution.
     """
     import _streamdirector as api
     api.log(f"run_agent called with: {instruction}")
+
+    # BitNet mode: custom lightweight agent loop, no CrewAI needed
+    if mode == "bitnet":
+        api.log("Running in BitNet mode (custom agent loop)...")
+        try:
+            from sd_bitnet_agent import run_bitnet_agent
+            return run_bitnet_agent(instruction)
+        except ImportError as e:
+            api.log(f"Could not import sd_bitnet_agent: {e}")
+            return f"BitNet agent module not available: {e}"
+        except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
+            return f"BitNet agent error: {e}\n\nTraceback:\n{tb}"
 
     try:
         _ensure_agent_path()
