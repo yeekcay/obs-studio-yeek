@@ -132,31 +132,39 @@ def _find_source_level(levels, source_name):
     return -100
 
 
+_volume_adjust_cooldown = {}
+
 def _reactive_check(state, actions_taken):
     """Run reactive rules on current state."""
     actions = []
 
     levels = _get_audio_levels()
+    now = time.time()
     for src in levels:
         name = src.get("name", "")
         peak = src.get("peak_db", -100)
         input_peak = src.get("input_peak_db", -100)
 
-        if peak > PEAK_CLIP_DB:
-            try:
-                vol_info = _streamdirector.get_source_volume(name)
-                if vol_info:
-                    current_vol = vol_info.get("volume", 1.0)
-                    current_db = _linear_to_db(current_vol)
-                    new_db = current_db - VOLUME_ADJUST_STEP
-                    new_vol = _db_to_linear(new_db)
-                    _streamdirector.set_source_volume(name, new_vol)
-                    actions.append(f"Auto-lowered {name} by {VOLUME_ADJUST_STEP}dB (peak {peak:.1f}dB)")
-            except Exception:
-                pass
+        # Only auto-lower if actually clipping and not on cooldown
+        if peak > PEAK_CLIP_DB and peak > -99.0:
+            last_adjust = _volume_adjust_cooldown.get(name, 0)
+            if now - last_adjust > 10.0:  # 10s cooldown per source
+                try:
+                    vol_info = _streamdirector.get_source_volume(name)
+                    if vol_info and not vol_info.get("muted", False):
+                        current_vol = vol_info.get("volume", 1.0)
+                        if current_vol > 0.001:
+                            current_db = _linear_to_db(current_vol)
+                            new_db = current_db - VOLUME_ADJUST_STEP
+                            new_vol = _db_to_linear(new_db)
+                            _streamdirector.set_source_volume(name, new_vol)
+                            _volume_adjust_cooldown[name] = now
+                            actions.append(f"Auto-lowered {name} by {VOLUME_ADJUST_STEP}dB (peak {peak:.1f}dB)")
+                except Exception:
+                    pass
 
         if state.get("streaming") and "mic" in name.lower():
-            if input_peak < MIC_SILENCE_DB:
+            if input_peak < MIC_SILENCE_DB and input_peak > -99.0:
                 actions.append(f"Warning: {name} silent (input {input_peak:.1f}dB)")
 
     stats = _get_streaming_stats()
@@ -197,13 +205,18 @@ def _build_llm_prompt(state, levels, stats):
 Audio levels:
 {chr(10).join(audio_info) if audio_info else '  No audio sources'}
 
-Should I switch scenes? Respond with ONLY JSON:
+Should I switch to a different scene? Respond with ONLY JSON:
 {{"action": "switch_scene"|"none", "scene": "name", "reason": "brief"}}
 
-Examples:
-- Desktop loud, mic quiet -> {{"action": "none", "reason": "gaming scene fine"}}
-- Mic active, desktop silent -> {{"action": "switch_scene", "scene": "Just Chatting", "reason": "talking"}}
-- All good -> {{"action": "none", "reason": "all good"}}
+Rules:
+- Only switch to scenes that exist in the list above
+- If desktop/game audio is louder than mic, keep game scene
+- If mic is louder than desktop, switch to a talking scene
+- If everything is fine, say none
+
+Example responses:
+{{"action": "none", "reason": "game audio active, keep current scene"}}
+{{"action": "switch_scene", "scene": "{scene_list[0] if scene_list else 'Scene'}", "reason": "mic is active"}}
 """
     return prompt
 

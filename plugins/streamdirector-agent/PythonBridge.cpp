@@ -19,6 +19,7 @@ struct AudioLevels {
 	float magnitude[MAX_AUDIO_CHANNELS] = {};
 	float input_peak[MAX_AUDIO_CHANNELS] = {};
 	int nr_channels = 0;
+	bool has_data = false;
 };
 
 static std::map<std::string, AudioLevels> g_audioLevels;
@@ -38,6 +39,7 @@ static void volmeter_callback(void *param, const float magnitude[MAX_AUDIO_CHANN
 	memcpy(levels.peak, peak, sizeof(float) * MAX_AUDIO_CHANNELS);
 	memcpy(levels.magnitude, magnitude, sizeof(float) * MAX_AUDIO_CHANNELS);
 	memcpy(levels.input_peak, input_peak, sizeof(float) * MAX_AUDIO_CHANNELS);
+	levels.has_data = true;
 }
 
 static void ensure_volmeter_for_source(const char *name, obs_source_t *source)
@@ -371,19 +373,23 @@ static PyObject *sd_get_audio_levels(PyObject *self, PyObject *args)
 
 	std::lock_guard<std::mutex> lock(g_audioLevelsMutex);
 	for (auto &[name, levels] : g_audioLevels) {
+		if (!levels.has_data)
+			continue;
+
 		PyObject *dict = PyDict_New();
 		PyDict_SetItemString(dict, "name", PyUnicode_FromString(name.c_str()));
 
-		float max_peak = -INFINITY;
-		float max_magnitude = -INFINITY;
-		float max_input_peak = -INFINITY;
+		float max_peak = -100.0f;
+		float max_magnitude = -100.0f;
+		float max_input_peak = -100.0f;
 		for (int i = 0; i < MAX_AUDIO_CHANNELS; i++) {
-			if (levels.peak[i] > max_peak)
-				max_peak = levels.peak[i];
-			if (levels.magnitude[i] > max_magnitude)
-				max_magnitude = levels.magnitude[i];
-			if (levels.input_peak[i] > max_input_peak)
-				max_input_peak = levels.input_peak[i];
+			float p = levels.peak[i];
+			float m = levels.magnitude[i];
+			float ip = levels.input_peak[i];
+			/* Clamp -INFINITY to -100dB for Python */
+			if (p > -100.0f && p > max_peak) max_peak = p;
+			if (m > -100.0f && m > max_magnitude) max_magnitude = m;
+			if (ip > -100.0f && ip > max_input_peak) max_input_peak = ip;
 		}
 
 		PyDict_SetItemString(dict, "peak_db", PyFloat_FromDouble(max_peak));
