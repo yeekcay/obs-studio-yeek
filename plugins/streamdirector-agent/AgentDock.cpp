@@ -73,7 +73,8 @@ AgentDock::AgentDock(QWidget *parent) : QDockWidget("StreamDirector Agent", pare
 	modeCombo_->addItem("Responsive", "responsive");
 	modeCombo_->addItem("Autonomous Stream", "autonomous");
 	modeCombo_->addItem("BitNet (Fast)", "bitnet");
-	modeCombo_->setToolTip("Responsive: Only does what you ask.\nAutonomous Stream: Auto-manages scenes, audio, recording, and streaming.\nBitNet (Fast): Lightweight agent loop using local 1-bit LLM for fast tool calls.");
+	modeCombo_->addItem("Autonomous (BitNet)", "autonomous-bitnet");
+	modeCombo_->setToolTip("Responsive: Only does what you ask.\nAutonomous Stream: Auto-manages scenes, audio, recording, and streaming.\nBitNet (Fast): Lightweight agent loop using local 1-bit LLM for fast tool calls.\nAutonomous (BitNet): Hybrid auto-monitoring with reactive rules + LLM scene decisions.");
 	modeLayout->addWidget(modeLabel);
 	modeLayout->addWidget(modeCombo_);
 	modeLayout->addStretch();

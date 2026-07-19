@@ -305,6 +305,26 @@ def run_agent(instruction: str, mode: str = "responsive") -> str:
             tb = traceback.format_exc()
             return f"BitNet agent error: {e}\n\nTraceback:\n{tb}"
 
+    # Autonomous BitNet mode: hybrid rule-based + LLM continuous monitoring
+    if mode == "autonomous-bitnet":
+        api.log("Running in Autonomous BitNet mode (hybrid monitoring)...")
+        try:
+            import threading
+            from sd_autonomous_agent import run_autonomous_agent
+            stop_event = threading.Event()
+            # Run in blocking mode - the C++ side manages the thread
+            return run_autonomous_agent(
+                stop_event=stop_event,
+                log_func=api.log,
+            )
+        except ImportError as e:
+            api.log(f"Could not import sd_autonomous_agent: {e}")
+            return f"Autonomous agent module not available: {e}"
+        except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
+            return f"Autonomous agent error: {e}\n\nTraceback:\n{tb}"
+
     try:
         _ensure_agent_path()
 

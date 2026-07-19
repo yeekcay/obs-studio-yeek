@@ -2,11 +2,58 @@
 
 #include <obs-module.h>
 #include <obs-frontend-api.h>
+#include <obs-audio-controls.h>
+#include <map>
+#include <string>
+#include <mutex>
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 #include <filesystem>
+
+/* --- Audio level monitoring --- */
+
+struct AudioLevels {
+	float peak[MAX_AUDIO_CHANNELS] = {};
+	float magnitude[MAX_AUDIO_CHANNELS] = {};
+	float input_peak[MAX_AUDIO_CHANNELS] = {};
+	int nr_channels = 0;
+};
+
+static std::map<std::string, AudioLevels> g_audioLevels;
+static std::mutex g_audioLevelsMutex;
+static std::map<std::string, obs_volmeter_t *> g_volmeters;
+
+static void volmeter_callback(void *param, const float magnitude[MAX_AUDIO_CHANNELS],
+			      const float peak[MAX_AUDIO_CHANNELS],
+			      const float input_peak[MAX_AUDIO_CHANNELS])
+{
+	const char *name = (const char *)param;
+	if (!name)
+		return;
+
+	std::lock_guard<std::mutex> lock(g_audioLevelsMutex);
+	AudioLevels &levels = g_audioLevels[name];
+	memcpy(levels.peak, peak, sizeof(float) * MAX_AUDIO_CHANNELS);
+	memcpy(levels.magnitude, magnitude, sizeof(float) * MAX_AUDIO_CHANNELS);
+	memcpy(levels.input_peak, input_peak, sizeof(float) * MAX_AUDIO_CHANNELS);
+}
+
+static void ensure_volmeter_for_source(const char *name, obs_source_t *source)
+{
+	if (g_volmeters.count(name))
+		return;
+
+	obs_volmeter_t *vm = obs_volmeter_create(OBS_FADER_CUBIC);
+	if (!vm)
+		return;
+
+	obs_volmeter_attach_source(vm, source);
+	obs_volmeter_add_callback(vm, volmeter_callback, (void *)strdup(name));
+	g_volmeters[name] = vm;
+	g_audioLevels[name] = AudioLevels{};
+}
 
 PythonBridge &PythonBridge::Instance()
 {
@@ -243,7 +290,50 @@ static PyObject *sd_get_audio_sources(PyObject *self, PyObject *args)
 	return list;
 }
 
-/* --- Stats --- */
+static PyObject *sd_get_audio_levels(PyObject *self, PyObject *args)
+{
+	PyObject *list = PyList_New(0);
+
+	obs_enum_sources(
+		[](void *param, obs_source_t *source) {
+			uint32_t flags = obs_source_get_output_flags(source);
+			if (flags & OBS_SOURCE_AUDIO) {
+				const char *name = obs_source_get_name(source);
+				if (!name)
+					return true;
+
+				ensure_volmeter_for_source(name, source);
+			}
+			return true;
+		},
+		nullptr);
+
+	std::lock_guard<std::mutex> lock(g_audioLevelsMutex);
+	for (auto &[name, levels] : g_audioLevels) {
+		PyObject *dict = PyDict_New();
+		PyDict_SetItemString(dict, "name", PyUnicode_FromString(name.c_str()));
+
+		float max_peak = -INFINITY;
+		float max_magnitude = -INFINITY;
+		float max_input_peak = -INFINITY;
+		for (int i = 0; i < MAX_AUDIO_CHANNELS; i++) {
+			if (levels.peak[i] > max_peak)
+				max_peak = levels.peak[i];
+			if (levels.magnitude[i] > max_magnitude)
+				max_magnitude = levels.magnitude[i];
+			if (levels.input_peak[i] > max_input_peak)
+				max_input_peak = levels.input_peak[i];
+		}
+
+		PyDict_SetItemString(dict, "peak_db", PyFloat_FromDouble(max_peak));
+		PyDict_SetItemString(dict, "magnitude_db", PyFloat_FromDouble(max_magnitude));
+		PyDict_SetItemString(dict, "input_peak_db", PyFloat_FromDouble(max_input_peak));
+
+		PyList_Append(list, dict);
+	}
+
+	return list;
+}
 
 static PyObject *sd_get_stats(PyObject *self, PyObject *args)
 {
@@ -288,6 +378,7 @@ static PyMethodDef SDMethods[] = {
 	{"set_source_volume", sd_set_source_volume, METH_VARARGS, "Set volume for a source"},
 	{"set_source_muted", sd_set_source_muted, METH_VARARGS, "Set mute state for a source"},
 	{"get_audio_sources", sd_get_audio_sources, METH_NOARGS, "Get list of audio source names"},
+	{"get_audio_levels", sd_get_audio_levels, METH_NOARGS, "Get real-time audio levels (peak/magnitude dB) for all audio sources"},
 	{"get_stats", sd_get_stats, METH_NOARGS, "Get streaming/recording stats"},
 	{nullptr, nullptr, 0, nullptr},
 };

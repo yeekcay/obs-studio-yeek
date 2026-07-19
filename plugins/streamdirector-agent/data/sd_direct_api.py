@@ -152,6 +152,15 @@ class DirectOBSAPI:
             "outputTotalFrames": stats.get("streaming_total_frames", 0),
         }
 
+    async def get_audio_levels(self) -> list:
+        """Get real-time audio levels for all audio sources.
+        Returns list of dicts with: name, peak_db, magnitude_db, input_peak_db
+        """
+        try:
+            return api.get_audio_levels()
+        except Exception:
+            return []
+
 
 def _db_to_linear(db: float) -> float:
     """Convert decibels to linear volume (0.0-1.0)."""
