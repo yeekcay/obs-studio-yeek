@@ -21,6 +21,8 @@ function replaceTokens(str, data) {
   });
 }
 
+let statusHideTimer = null;
+
 function updateStatus(message, connected) {
   const overlay = document.getElementById("statusOverlay");
   const text = document.getElementById("statusText");
@@ -30,6 +32,11 @@ function updateStatus(message, connected) {
     overlay.classList.add("hidden");
   } else {
     overlay.classList.remove("hidden");
+    // Auto-hide after 5 seconds so it doesn't block the stream
+    if (statusHideTimer) clearTimeout(statusHideTimer);
+    statusHideTimer = setTimeout(() => {
+      overlay.classList.add("hidden");
+    }, 5000);
   }
 }
 
