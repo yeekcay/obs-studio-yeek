@@ -46,23 +46,28 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 {
 	setObjectName("AudioSceneSwitcher");
 	setAllowedAreas(Qt::AllDockWidgetAreas);
-	setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
-	setMinimumWidth(280);
+	setTitleBarWidget(new QWidget());
 
-	QScrollArea *scrollArea = new QScrollArea(this);
+	QWidget *container = new QWidget(this);
+	QVBoxLayout *outerLayout = new QVBoxLayout(container);
+	outerLayout->setContentsMargins(0, 0, 0, 0);
+
+	QScrollArea *scrollArea = new QScrollArea(container);
 	scrollArea->setWidgetResizable(true);
 	scrollArea->setFrameShape(QFrame::NoFrame);
 	scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
-	QWidget *container = new QWidget();
-	scrollArea->setWidget(container);
-	setWidget(scrollArea);
+	QWidget *content = new QWidget();
+	scrollArea->setWidget(content);
+	outerLayout->addWidget(scrollArea);
 
-	QVBoxLayout *mainLayout = new QVBoxLayout(container);
+	setWidget(container);
+
+	QVBoxLayout *mainLayout = new QVBoxLayout(content);
 	mainLayout->setContentsMargins(6, 6, 6, 6);
 
 	/* --- Scene Selection --- */
-	QGroupBox *sceneGroup = new QGroupBox("Scene Selection", container);
+	QGroupBox *sceneGroup = new QGroupBox("Scene Selection", content);
 	QGridLayout *sceneLayout = new QGridLayout(sceneGroup);
 	sceneLayout->setColumnStretch(1, 1);
 
@@ -77,7 +82,7 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 	mainLayout->addWidget(sceneGroup);
 
 	/* --- Source Selection --- */
-	QGroupBox *sourceGroup = new QGroupBox("Audio Sources to Monitor", container);
+	QGroupBox *sourceGroup = new QGroupBox("Audio Sources to Monitor", content);
 	QGridLayout *sourceLayout = new QGridLayout(sourceGroup);
 	sourceLayout->setColumnStretch(1, 1);
 
@@ -92,7 +97,7 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 	mainLayout->addWidget(sourceGroup);
 
 	/* --- Thresholds --- */
-	QGroupBox *threshGroup = new QGroupBox("Switching Thresholds", container);
+	QGroupBox *threshGroup = new QGroupBox("Switching Thresholds", content);
 	QGridLayout *threshLayout = new QGridLayout(threshGroup);
 
 	thresholdLabel_ = new QLabel("3.0 dB", threshGroup);
@@ -116,7 +121,7 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 	mainLayout->addWidget(threshGroup);
 
 	/* --- Live Level Display --- */
-	QGroupBox *levelGroup = new QGroupBox("Live Audio Levels", container);
+	QGroupBox *levelGroup = new QGroupBox("Live Audio Levels", content);
 	QGridLayout *levelLayout = new QGridLayout(levelGroup);
 
 	levelALabel_ = new QLabel("Source A: --.- dB", levelGroup);
@@ -132,10 +137,10 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 	/* --- Controls --- */
 	QHBoxLayout *ctrlLayout = new QHBoxLayout();
 
-	startButton_ = new QPushButton("Start", container);
-	stopButton_ = new QPushButton("Stop", container);
+	startButton_ = new QPushButton("Start", content);
+	stopButton_ = new QPushButton("Stop", content);
 	stopButton_->setEnabled(false);
-	refreshButton_ = new QPushButton("Refresh", container);
+	refreshButton_ = new QPushButton("Refresh", content);
 
 	ctrlLayout->addWidget(startButton_);
 	ctrlLayout->addWidget(stopButton_);
@@ -146,9 +151,9 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 
 	/* --- Status --- */
 	QHBoxLayout *statusLayout = new QHBoxLayout();
-	statusLabel_ = new QLabel("Status: Idle", container);
+	statusLabel_ = new QLabel("Status: Idle", content);
 	statusLabel_->setStyleSheet("padding: 4px; color: #888;");
-	switchCountLabel_ = new QLabel("Switches: 0", container);
+	switchCountLabel_ = new QLabel("Switches: 0", content);
 	switchCountLabel_->setStyleSheet("padding: 4px; color: #888;");
 	statusLayout->addWidget(statusLabel_);
 	statusLayout->addStretch();
@@ -157,7 +162,7 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 	mainLayout->addLayout(statusLayout);
 
 	/* --- Video Motion Detection (Optional) --- */
-	QGroupBox *videoGroup = new QGroupBox("Video Motion Detection (Optional)", container);
+	QGroupBox *videoGroup = new QGroupBox("Video Motion Detection (Optional)", content);
 	QVBoxLayout *videoLayout = new QVBoxLayout(videoGroup);
 
 	videoEnableCheck_ = new QCheckBox("Enable motion-triggered scene switching", videoGroup);
@@ -198,7 +203,7 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 	mainLayout->addWidget(videoGroup);
 
 	/* --- Stream Quality Monitor (Optional) --- */
-	QGroupBox *streamGroup = new QGroupBox("Stream Quality Monitor (Optional)", container);
+	QGroupBox *streamGroup = new QGroupBox("Stream Quality Monitor (Optional)", content);
 	QVBoxLayout *streamLayout = new QVBoxLayout(streamGroup);
 
 	streamQualityEnableCheck_ = new QCheckBox("Enable low-bitrate scene switching", streamGroup);
@@ -228,11 +233,11 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 	mainLayout->addWidget(streamGroup);
 
 	/* --- Log --- */
-	logDisplay_ = new QTextEdit(container);
+	logDisplay_ = new QTextEdit(content);
 	logDisplay_->setReadOnly(true);
 	logDisplay_->setMaximumHeight(150);
 	logDisplay_->setStyleSheet("font-family: monospace; font-size: 11px;");
-	mainLayout->addWidget(new QLabel("Log:", container));
+	mainLayout->addWidget(new QLabel("Log:", content));
 	mainLayout->addWidget(logDisplay_);
 
 	mainLayout->addStretch();
