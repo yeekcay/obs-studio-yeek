@@ -103,8 +103,8 @@ def _parse_ab_config(instruction):
         return {
             "scene_a": match.group(1).strip(),
             "scene_b": match.group(2).strip(),
-            "source_a": match.group(3).strip(),
-            "source_b": match.group(4).strip(),
+            "source_a": _clean_source_name(match.group(3)),
+            "source_b": _clean_source_name(match.group(4)),
         }
 
     pattern2 = r'switch between (.+?) and (.+?) (?:on|when) (.+?) vs (.+)'
@@ -113,21 +113,40 @@ def _parse_ab_config(instruction):
         return {
             "scene_a": match.group(1).strip(),
             "scene_b": match.group(2).strip(),
-            "source_a": match.group(3).strip(),
-            "source_b": match.group(4).strip(),
+            "source_a": _clean_source_name(match.group(3)),
+            "source_b": _clean_source_name(match.group(4)),
         }
 
     return None
 
 
+def _clean_source_name(name):
+    """Strip trailing words like 'volume', 'audio', 'level', 'db' from source name."""
+    name = name.strip().strip("'\"")
+    # Remove trailing common words
+    trailing_words = ['volume', 'audio', 'level', 'levels', 'db', 'input', 'output', 'sound']
+    changed = True
+    while changed:
+        changed = False
+        for word in trailing_words:
+            if name.lower().endswith(' ' + word):
+                name = name[:-(len(word) + 1)].strip()
+                changed = True
+                break
+    return name
+
+
 def _find_source_level(levels, source_name):
     """Find a source's magnitude (RMS) level from the audio levels list."""
     source_lower = source_name.lower()
+    # Exact match first
     for src in levels:
         if src.get("name", "").lower() == source_lower:
             return src.get("magnitude_db", -100)
+    # Partial match: search term contains source name or vice versa
     for src in levels:
-        if source_lower in src.get("name", "").lower():
+        src_name = src.get("name", "").lower()
+        if source_lower in src_name or src_name in source_lower:
             return src.get("magnitude_db", -100)
     return -100
 
