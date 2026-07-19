@@ -12,6 +12,7 @@
 #include <QGroupBox>
 #include <QFrame>
 #include <QScrollBar>
+#include <QScrollArea>
 #include <QDateTime>
 #include <cmath>
 #include <cstring>
@@ -44,11 +45,21 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 	  streamQualitySwitched_(false)
 {
 	setObjectName("AudioSceneSwitcher");
+	setAllowedAreas(Qt::AllDockWidgetAreas);
+	setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
+	setMinimumWidth(280);
 
-	QWidget *container = new QWidget(this);
-	setWidget(container);
+	QScrollArea *scrollArea = new QScrollArea(this);
+	scrollArea->setWidgetResizable(true);
+	scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+	QWidget *container = new QWidget();
+	container->setMinimumWidth(260);
+	scrollArea->setWidget(container);
+	setWidget(scrollArea);
 
 	QVBoxLayout *mainLayout = new QVBoxLayout(container);
+	mainLayout->setContentsMargins(4, 4, 4, 4);
 
 	/* --- Scene Selection --- */
 	QGroupBox *sceneGroup = new QGroupBox("Scene Selection", container);
