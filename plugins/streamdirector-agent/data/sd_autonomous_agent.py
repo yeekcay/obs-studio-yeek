@@ -46,9 +46,9 @@ REACTIVE_CHECK_INTERVAL = 2
 VOLUME_ADJUST_STEP = 3.0
 
 # A/B switching thresholds
-AB_SWITCH_HYSTERESIS_DB = 6.0
-AB_SWITCH_SUSTAIN_SECS = 3.0
-AB_MIN_LEVEL_DB = -40.0
+AB_SWITCH_HYSTERESIS_DB = 3.0     # Source must be 3dB louder to trigger switch
+AB_SWITCH_SUSTAIN_SECS = 2.0     # Must be louder for 2 consecutive seconds
+AB_MIN_LEVEL_DB = -60.0          # Below this, source is considered silent
 
 
 def _init_api():
