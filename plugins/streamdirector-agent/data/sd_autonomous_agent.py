@@ -262,6 +262,16 @@ def _linear_to_db(linear):
     return 20.0 * math.log10(linear)
 
 
+def _should_stop(stop_event):
+    """Check both the Python stop_event and the C++ stop flag."""
+    if stop_event is not None and stop_event.is_set():
+        return True
+    try:
+        return _streamdirector.is_stop_requested()
+    except Exception:
+        return False
+
+
 def _run_ab_switching(config, stop_event, log_func, server_url):
     """Run A/B scene switching loop based on audio source comparison."""
     scene_a = config["scene_a"]
@@ -301,7 +311,7 @@ def _run_ab_switching(config, stop_event, log_func, server_url):
     b_dominant_since = None
     switch_count = 0
 
-    while not stop_event.is_set():
+    while not _should_stop(stop_event):
         levels = _get_audio_levels()
         level_a = _find_source_level(levels, source_a)
         level_b = _find_source_level(levels, source_b)
@@ -340,7 +350,10 @@ def _run_ab_switching(config, stop_event, log_func, server_url):
             a_dominant_since = None
             b_dominant_since = None
 
-        stop_event.wait(REACTIVE_CHECK_INTERVAL)
+        if stop_event is not None:
+            stop_event.wait(REACTIVE_CHECK_INTERVAL)
+        else:
+            time.sleep(REACTIVE_CHECK_INTERVAL)
 
     log_func(f"[autonomous] A/B switching stopped. Total switches: {switch_count}")
     return f"A/B switching stopped. Total switches: {switch_count}"
@@ -382,7 +395,7 @@ def run_autonomous_agent(instruction="", server_url=None, stop_event=None, log_f
 
     last_llm_check = 0
 
-    while not stop_event.is_set():
+    while not _should_stop(stop_event):
         state = _get_obs_state()
 
         actions = _reactive_check(state, [])
@@ -419,7 +432,10 @@ def run_autonomous_agent(instruction="", server_url=None, stop_event=None, log_f
             except Exception as e:
                 log_func(f"[autonomous] Parse error: {e}")
 
-        stop_event.wait(REACTIVE_CHECK_INTERVAL)
+        if stop_event is not None:
+            stop_event.wait(REACTIVE_CHECK_INTERVAL)
+        else:
+            time.sleep(REACTIVE_CHECK_INTERVAL)
 
     log_func("[autonomous] Stopped.")
     return "Autonomous agent stopped."

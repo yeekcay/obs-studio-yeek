@@ -22,6 +22,7 @@ public:
 
 	bool RunAgent(const std::string &instruction, std::string &result, const std::string &mode = "responsive");
 	bool IsAgentRunning() const { return agentRunning; }
+	bool IsStopRequested() const { return stopRequested; }
 	void StopAgent();
 
 	void SetOutputCallback(std::function<void(const std::string &)> callback);
@@ -35,6 +36,7 @@ private:
 
 	bool initialized = false;
 	std::atomic<bool> agentRunning{false};
+	std::atomic<bool> stopRequested{false};
 	std::string pythonHome;
 	std::string agentModulePath;
 	std::function<void(const std::string &)> outputCallback;

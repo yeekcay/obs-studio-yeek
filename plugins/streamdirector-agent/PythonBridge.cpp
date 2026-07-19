@@ -102,6 +102,14 @@ static PyObject *sd_log(PyObject *self, PyObject *args)
 	Py_RETURN_NONE;
 }
 
+static PyObject *sd_is_stop_requested(PyObject *self, PyObject *args)
+{
+	if (PythonBridge::Instance().IsStopRequested()) {
+		Py_RETURN_TRUE;
+	}
+	Py_RETURN_FALSE;
+}
+
 /* --- Scene Management --- */
 
 static PyObject *sd_get_scene_names(PyObject *self, PyObject *args)
@@ -430,6 +438,7 @@ static PyObject *sd_get_stats(PyObject *self, PyObject *args)
 
 static PyMethodDef SDMethods[] = {
 	{"log", sd_log, METH_VARARGS, "Log a message to StreamDirector"},
+	{"is_stop_requested", sd_is_stop_requested, METH_NOARGS, "Check if stop was requested by user"},
 	{"get_scene_names", sd_get_scene_names, METH_NOARGS, "Get list of scene names"},
 	{"get_current_scene", sd_get_current_scene, METH_NOARGS, "Get current scene name"},
 	{"set_current_scene", sd_set_current_scene, METH_VARARGS, "Switch to scene by name"},
@@ -580,6 +589,7 @@ bool PythonBridge::RunAgent(const std::string &instruction, std::string &result,
 	}
 
 	agentRunning = true;
+	stopRequested = false;
 
 	blog(LOG_INFO, "[streamdirector-agent] RunAgent: acquiring GIL (mode=%s)...", mode.c_str());
 	PyGILState_STATE gstate = PyGILState_Ensure();
@@ -641,6 +651,7 @@ void PythonBridge::StopAgent()
 	if (!agentRunning)
 		return;
 
-	blog(LOG_INFO, "[streamdirector-agent] StopAgent: sending KeyboardInterrupt to Python...");
+	blog(LOG_INFO, "[streamdirector-agent] StopAgent: setting stop flag + KeyboardInterrupt...");
+	stopRequested = true;
 	PyErr_SetInterrupt();
 }
