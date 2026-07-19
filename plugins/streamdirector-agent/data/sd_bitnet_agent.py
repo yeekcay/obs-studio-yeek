@@ -194,60 +194,98 @@ def _execute_tool(tool_name: str, args: dict) -> str:
 
 # --- LLM inference via HTTP ---
 
-def _call_llm(prompt: str, system_prompt: str, server_url: str, temperature: float = 0.3) -> str:
+def _call_llm(prompt: str, system_prompt: str, server_url: str, temperature: float = 0.1) -> str:
     """
-    Call a local llama.cpp / BitNet compatible server.
-    Uses the OpenAI-compatible /v1/chat/completions endpoint.
-    Falls back to /completion if that fails (llama.cpp native endpoint).
+    Call a local BitNet / llama.cpp inference server.
+    Uses the /completion endpoint (native llama.cpp) which works better
+    with small 1-bit models for few-shot prompting.
+    Falls back to /v1/chat/completions if /completion fails.
     """
-    # Try OpenAI-compatible endpoint first
-    payload = json.dumps({
-        "model": "bitnet",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": temperature,
-        "max_tokens": 512,
-    }).encode("utf-8")
-
-    # Try /v1/chat/completions first
+    # Primary: /completion endpoint with full prompt (best for small models)
+    full_prompt = f"{system_prompt}\n\n{prompt}"
     try:
+        payload = json.dumps({
+            "prompt": full_prompt,
+            "temperature": temperature,
+            "n_predict": 64,
+        }).encode("utf-8")
+
         req = urllib.request.Request(
-            f"{server_url}/v1/chat/completions",
+            f"{server_url}/completion",
             data=payload,
             headers={"Content-Type": "application/json"},
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-            return data["choices"][0]["message"]["content"].strip()
-    except (urllib.error.URLError, KeyError, json.JSONDecodeError):
+            return data.get("content", "").strip()
+    except Exception:
         pass
 
-    # Fallback: llama.cpp native /completion endpoint
+    # Fallback: OpenAI-compatible /v1/chat/completions
     try:
-        full_prompt = f"{system_prompt}\n\nUser: {prompt}\nAssistant:"
-        fallback_payload = json.dumps({
-            "prompt": full_prompt,
+        chat_payload = json.dumps({
+            "model": "bitnet",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ],
             "temperature": temperature,
-            "n_predict": 512,
+            "max_tokens": 64,
         }).encode("utf-8")
 
         req = urllib.request.Request(
-            f"{server_url}/completion",
-            data=fallback_payload,
+            f"{server_url}/v1/chat/completions",
+            data=chat_payload,
             headers={"Content-Type": "application/json"},
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-            return data.get("content", "").strip()
+            return data["choices"][0]["message"]["content"].strip()
     except Exception as e:
         return f"LLM_ERROR: Could not connect to inference server at {server_url}. Error: {e}"
 
 
 # --- Response parsing ---
+
+TOOL_NAME_ALIASES = {
+    "status": "get_status",
+    "get_streaming_status": "get_status",
+    "streaming_status": "get_status",
+    "stats": "get_stats",
+    "get_stat": "get_stats",
+    "performance": "get_stats",
+    "scenes": "list_scenes",
+    "get_scenes": "list_scenes",
+    "scene_list": "list_scenes",
+    "audio": "list_audio_sources",
+    "get_audio": "list_audio_sources",
+    "audio_sources": "list_audio_sources",
+    "mute": "set_mute",
+    "unmute": "set_mute",
+    "volume": "set_volume",
+    "change_scene": "switch_scene",
+    "set_scene": "switch_scene",
+    "switch": "switch_scene",
+    "go_live": "start_streaming",
+    "go_offline": "stop_streaming",
+    "end_stream": "stop_streaming",
+    "end_streaming": "stop_streaming",
+}
+
+VALID_TOOL_NAMES = {t["name"].lower(): t["name"] for t in TOOL_DEFINITIONS}
+
+
+def _normalize_tool_name(name: str) -> str:
+    """Normalize a tool name from model output to a valid tool name."""
+    name = name.strip().lower().replace(" ", "_").replace("-", "_")
+    if name in VALID_TOOL_NAMES:
+        return VALID_TOOL_NAMES[name]
+    if name in TOOL_NAME_ALIASES:
+        return TOOL_NAME_ALIASES[name]
+    return ""
+
 
 def _parse_tool_call(text: str):
     """
@@ -271,7 +309,9 @@ def _parse_tool_call(text: str):
                 tool_name = data.get("tool", data.get("name", data.get("function", "")))
                 tool_args = data.get("args", data.get("arguments", data.get("parameters", {})))
                 if tool_name:
-                    return tool_name, tool_args
+                    tool_name = _normalize_tool_name(str(tool_name))
+                    if tool_name:
+                        return tool_name, tool_args
             except (json.JSONDecodeError, AttributeError):
                 continue
 
@@ -300,9 +340,9 @@ def _parse_tool_call(text: str):
 
     # Try direct tool name match (single word response)
     text_clean = text.strip().lower().rstrip('.')
-    tool_names = {t["name"].lower(): t["name"] for t in TOOL_DEFINITIONS}
-    if text_clean in tool_names:
-        return tool_names[text_clean], {}
+    normalized = _normalize_tool_name(text_clean)
+    if normalized:
+        return normalized, {}
 
     return None, None
 
@@ -310,34 +350,56 @@ def _parse_tool_call(text: str):
 # --- System prompt builder ---
 
 def _build_system_prompt() -> str:
-    """Build the system prompt with tool definitions."""
-    tools_desc = []
-    for tool in TOOL_DEFINITIONS:
-        params = tool["parameters"]
-        if params:
-            param_str = ", ".join(f'{k}: {v.get("type", "string")}' for k, v in params.items())
-            tools_desc.append(f'  - {tool["name"]}({param_str}): {tool["description"]}')
-        else:
-            tools_desc.append(f'  - {tool["name"]}(): {tool["description"]}')
+    """Build the system prompt with few-shot examples for small models."""
+    return """You are an OBS control agent. Respond with ONLY JSON. No explanation.
 
-    return f"""You are an OBS (streaming software) control agent. You receive natural language instructions and respond with a single tool call in JSON format.
+Instruction: go live
+{"tool": "start_streaming", "args": {}}
 
-Available tools:
-{chr(10).join(tools_desc)}
+Instruction: start streaming
+{"tool": "start_streaming", "args": {}}
 
-Respond with ONLY a JSON tool call. No explanation needed.
-Format: {{"tool": "tool_name", "args": {{...}}}}
+Instruction: stop streaming
+{"tool": "stop_streaming", "args": {}}
 
-Examples:
-- "go live" -> {{"tool": "start_streaming", "args": {{}}}}
-- "stop the stream" -> {{"tool": "stop_streaming", "args": {{}}}}
-- "switch to scene 2" -> {{"tool": "switch_scene", "args": {{"scene_name": "Scene 2"}}}}
-- "mute my mic" -> {{"tool": "set_mute", "args": {{"source_name": "Mic/Aux", "muted": true}}}}
-- "lower game volume to -20" -> {{"tool": "set_volume", "args": {{"source_name": "Desktop Audio", "volume_db": -20}}}}
-- "what's my status" -> {{"tool": "get_status", "args": {{}}}}
-- "start recording" -> {{"tool": "start_recording", "args": {{}}}}
+Instruction: stop the stream
+{"tool": "stop_streaming", "args": {}}
 
-If the instruction is ambiguous, pick the most likely tool. Always respond with exactly one tool call as JSON."""
+Instruction: go offline
+{"tool": "stop_streaming", "args": {}}
+
+Instruction: start recording
+{"tool": "start_recording", "args": {}}
+
+Instruction: stop recording
+{"tool": "stop_recording", "args": {}}
+
+Instruction: what is my status
+{"tool": "get_status", "args": {}}
+
+Instruction: list scenes
+{"tool": "list_scenes", "args": {}}
+
+Instruction: switch to Gaming scene
+{"tool": "switch_scene", "args": {"scene_name": "Gaming"}}
+
+Instruction: switch to Scene 2
+{"tool": "switch_scene", "args": {"scene_name": "Scene 2"}}
+
+Instruction: mute my mic
+{"tool": "set_mute", "args": {"source_name": "Mic/Aux", "muted": true}}
+
+Instruction: unmute my mic
+{"tool": "set_mute", "args": {"source_name": "Mic/Aux", "muted": false}}
+
+Instruction: lower game volume to -20
+{"tool": "set_volume", "args": {"source_name": "Desktop Audio", "volume_db": -20}}
+
+Instruction: show audio sources
+{"tool": "list_audio_sources", "args": {}}
+
+Instruction: get stats
+{"tool": "get_stats", "args": {}}"""
 
 
 # --- Main agent loop ---
