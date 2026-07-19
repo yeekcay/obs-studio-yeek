@@ -208,6 +208,7 @@ def _call_llm(prompt: str, system_prompt: str, server_url: str, temperature: flo
             "prompt": full_prompt,
             "temperature": temperature,
             "n_predict": 64,
+            "stop": ["\nInstruction:", "\n\n", "Instruction:"],
         }).encode("utf-8")
 
         req = urllib.request.Request(
@@ -293,9 +294,29 @@ def _parse_tool_call(text: str):
     Supports JSON format: {"tool": "name", "args": {...}}
     Also supports simpler formats like: TOOL: name(args)
     """
-    # Try JSON extraction first
+    # Clean up common model output issues
+    text = text.replace("{...}", "{}").replace("{ ... }", "{}")
+    
+    # Try line-by-line JSON parsing first (works best with stop sequences)
+    for line in text.split("\n"):
+        line = line.strip()
+        if not line.startswith("{") or '"tool"' not in line:
+            continue
+        try:
+            data = json.loads(line)
+            tool_name = data.get("tool", data.get("name", data.get("function", "")))
+            tool_args = data.get("args", data.get("arguments", data.get("parameters", {})))
+            if tool_name:
+                tool_name = _normalize_tool_name(str(tool_name))
+                if tool_name:
+                    return tool_name, tool_args
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
+    # Try JSON extraction with regex as fallback
     json_patterns = [
         r'\{[^{}]*"tool"[^{}]*\}',  # Simple single-level JSON
+        r'\{.*?"tool".*?\}',  # Greedy match for nested braces
         r'```json\s*(\{.*?\})\s*```',  # JSON in code block
         r'```\s*(\{.*?\})\s*```',  # JSON in plain code block
     ]
@@ -305,6 +326,8 @@ def _parse_tool_call(text: str):
         if match:
             try:
                 json_str = match.group(1) if match.lastindex else match.group(0)
+                # Fix common JSON issues from small models
+                json_str = json_str.replace("{...}", "{}").replace("{ ... }", "{}")
                 data = json.loads(json_str)
                 tool_name = data.get("tool", data.get("name", data.get("function", "")))
                 tool_args = data.get("args", data.get("arguments", data.get("parameters", {})))
