@@ -284,16 +284,6 @@ def _run_ab_switching(config, stop_event, log_func, server_url):
     log_func(f"[autonomous] Scene B: '{scene_b}' (monitor: '{source_b}')")
     log_func(f"[autonomous] Threshold: {AB_SWITCH_HYSTERESIS_DB}dB for {AB_SWITCH_SUSTAIN_SECS}s")
 
-    try:
-        studio = _streamdirector.is_studio_mode()
-        if studio:
-            preview = _streamdirector.get_preview_scene()
-            log_func(f"[autonomous] Studio Mode ON (preview: '{preview}')")
-        else:
-            log_func(f"[autonomous] Studio Mode OFF - enable for dual-scene audio monitoring")
-    except Exception:
-        pass
-
     scenes = _streamdirector.get_scene_names()
     scene_list = list(scenes) if scenes else []
     if scene_a not in scene_list:
@@ -306,6 +296,16 @@ def _run_ab_switching(config, stop_event, log_func, server_url):
     audio_sources = _streamdirector.get_audio_sources()
     audio_list = list(audio_sources) if audio_sources else []
     log_func(f"[autonomous] Audio sources: {audio_list}")
+
+    # Ensure both monitored sources are in both scenes (hidden) so audio
+    # monitoring continues regardless of which scene is active
+    for source_name in [source_a, source_b]:
+        for scene_name in [scene_a, scene_b]:
+            try:
+                _streamdirector.ensure_source_in_scene(source_name, scene_name)
+            except Exception as e:
+                log_func(f"[autonomous] Could not ensure '{source_name}' in '{scene_name}': {e}")
+    log_func(f"[autonomous] Ensured both sources are in both scenes (hidden for audio monitoring)")
 
     a_dominant_since = None
     b_dominant_since = None

@@ -226,6 +226,70 @@ static PyObject *sd_get_scene_audio_sources(PyObject *self, PyObject *args)
 	return list;
 }
 
+static PyObject *sd_ensure_source_in_scene(PyObject *self, PyObject *args)
+{
+	const char *source_name;
+	const char *scene_name;
+	if (!PyArg_ParseTuple(args, "ss", &source_name, &scene_name))
+		return nullptr;
+
+	obs_source_t *source = obs_get_source_by_name(source_name);
+	if (!source) {
+		Py_RETURN_FALSE;
+	}
+
+	obs_source_t *scene_source = obs_get_source_by_name(scene_name);
+	if (!scene_source) {
+		obs_source_release(source);
+		Py_RETURN_FALSE;
+	}
+
+	obs_scene_t *scene = obs_scene_from_source(scene_source);
+	if (!scene) {
+		obs_source_release(source);
+		obs_source_release(scene_source);
+		Py_RETURN_FALSE;
+	}
+
+	/* Check if source is already in this scene */
+	bool found = false;
+	obs_scene_enum_items(
+		scene,
+		[](obs_scene_t *, obs_sceneitem_t *item, void *param) {
+			obs_source_t *src = obs_sceneitem_get_source(item);
+			obs_source_t *target = (obs_source_t *)param;
+			if (src == target) {
+				*((bool *)param) = true;
+				return false; /* stop enumeration */
+			}
+			return true;
+		},
+		&found);
+
+	if (found) {
+		/* Already in scene, nothing to do */
+		obs_source_release(source);
+		obs_source_release(scene_source);
+		Py_RETURN_TRUE;
+	}
+
+	/* Add source to scene as hidden (audio still active, video not visible) */
+	obs_sceneitem_t *item = obs_scene_add(scene, source);
+	if (item) {
+		obs_sceneitem_set_visible(item, false);
+		blog(LOG_INFO, "[streamdirector-agent] Added '%s' to scene '%s' (hidden) for audio monitoring",
+		     source_name, scene_name);
+	}
+
+	obs_source_release(source);
+	obs_source_release(scene_source);
+
+	if (item) {
+		Py_RETURN_TRUE;
+	}
+	Py_RETURN_FALSE;
+}
+
 /* --- Streaming --- */
 
 static PyObject *sd_start_streaming(PyObject *self, PyObject *args)
@@ -445,6 +509,7 @@ static PyMethodDef SDMethods[] = {
 	{"get_preview_scene", sd_get_preview_scene, METH_NOARGS, "Get Studio Mode preview scene name"},
 	{"is_studio_mode", sd_is_studio_mode, METH_NOARGS, "Check if Studio Mode is enabled"},
 	{"get_scene_audio_sources", sd_get_scene_audio_sources, METH_VARARGS, "Get audio source names within a specific scene"},
+	{"ensure_source_in_scene", sd_ensure_source_in_scene, METH_VARARGS, "Ensure an audio source is present in a scene (adds as hidden if missing)"},
 	{"start_streaming", sd_start_streaming, METH_NOARGS, "Start streaming"},
 	{"stop_streaming", sd_stop_streaming, METH_NOARGS, "Stop streaming"},
 	{"is_streaming", sd_is_streaming, METH_NOARGS, "Check if streaming is active"},
