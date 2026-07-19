@@ -86,7 +86,7 @@ bool obs_module_load(void)
 
 	audioSwitcherDock = new AudioSwitcherDock((QWidget *)obs_frontend_get_main_window());
 	obs_frontend_add_dock_by_id("StreamDirectorAudioSwitcher", "Audio Scene Switcher", audioSwitcherDock);
-	audioSwitcherDock->setVisible(false);
+	blog(LOG_INFO, "[streamdirector-agent] Audio Scene Switcher dock registered");
 
 	blog(LOG_INFO, "[streamdirector-agent] Plugin loaded successfully");
 	return true;
