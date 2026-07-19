@@ -3,6 +3,7 @@
 
 #include "PythonBridge.hpp"
 #include "AgentDock.hpp"
+#include "AudioSwitcherDock.hpp"
 
 #include <filesystem>
 #include <string>
@@ -11,6 +12,7 @@ OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("streamdirector-agent", "en-US")
 
 static AgentDock *agentDock = nullptr;
+static AudioSwitcherDock *audioSwitcherDock = nullptr;
 
 static std::string GetPluginDataPath()
 {
@@ -82,6 +84,10 @@ bool obs_module_load(void)
 	agentDock->setVisible(true);
 	agentDock->raise();
 
+	audioSwitcherDock = new AudioSwitcherDock((QWidget *)obs_frontend_get_main_window());
+	obs_frontend_add_dock_by_id("StreamDirectorAudioSwitcher", "Audio Scene Switcher", audioSwitcherDock);
+	audioSwitcherDock->setVisible(false);
+
 	blog(LOG_INFO, "[streamdirector-agent] Plugin loaded successfully");
 	return true;
 }
@@ -94,6 +100,12 @@ void obs_module_unload(void)
 		obs_frontend_remove_dock("StreamDirectorAgent");
 		delete agentDock;
 		agentDock = nullptr;
+	}
+
+	if (audioSwitcherDock) {
+		obs_frontend_remove_dock("StreamDirectorAudioSwitcher");
+		delete audioSwitcherDock;
+		audioSwitcherDock = nullptr;
 	}
 
 	PythonBridge::Instance().Shutdown();

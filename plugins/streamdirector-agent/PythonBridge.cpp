@@ -720,3 +720,89 @@ void PythonBridge::StopAgent()
 	stopRequested = true;
 	PyErr_SetInterrupt();
 }
+
+/* --- Audio level access for AudioSwitcherDock --- */
+
+float PythonBridge::GetSourceMagnitudeDb(const std::string &sourceName)
+{
+	std::lock_guard<std::mutex> lock(g_audioLevelsMutex);
+	auto it = g_audioLevels.find(sourceName);
+	if (it == g_audioLevels.end() || !it->second.has_data)
+		return -100.0f;
+
+	float max_mag = -100.0f;
+	for (int i = 0; i < MAX_AUDIO_CHANNELS; i++) {
+		float m = it->second.magnitude[i];
+		if (m > -100.0f && m > max_mag)
+			max_mag = m;
+	}
+	return max_mag;
+}
+
+void PythonBridge::EnsureAllVolmeters()
+{
+	obs_enum_sources(
+		[](void *param, obs_source_t *source) {
+			uint32_t flags = obs_source_get_output_flags(source);
+			if (flags & OBS_SOURCE_AUDIO) {
+				const char *name = obs_source_get_name(source);
+				if (name)
+					ensure_volmeter_for_source(name, source);
+			}
+			return true;
+		},
+		nullptr);
+}
+
+bool PythonBridge::EnsureSourceInScene(const std::string &sourceName, const std::string &sceneName)
+{
+	obs_source_t *source = obs_get_source_by_name(sourceName.c_str());
+	if (!source)
+		return false;
+
+	obs_source_t *scene_source = obs_get_source_by_name(sceneName.c_str());
+	if (!scene_source) {
+		obs_source_release(source);
+		return false;
+	}
+
+	obs_scene_t *scene = obs_scene_from_source(scene_source);
+	if (!scene) {
+		obs_source_release(source);
+		obs_source_release(scene_source);
+		return false;
+	}
+
+	/* Check if already in scene */
+	bool found = false;
+	obs_scene_enum_items(
+		scene,
+		[](obs_scene_t *, obs_sceneitem_t *item, void *param) {
+			obs_source_t *src = obs_sceneitem_get_source(item);
+			obs_source_t *target = (obs_source_t *)param;
+			if (src == target) {
+				*((bool *)param) = true;
+				return false;
+			}
+			return true;
+		},
+		&found);
+
+	if (found) {
+		obs_source_release(source);
+		obs_source_release(scene_source);
+		return true;
+	}
+
+	/* Add as hidden */
+	obs_sceneitem_t *item = obs_scene_add(scene, source);
+	if (item) {
+		obs_sceneitem_set_visible(item, false);
+		blog(LOG_INFO, "[streamdirector-agent] Added '%s' to scene '%s' (hidden) for audio monitoring",
+		     sourceName.c_str(), sceneName.c_str());
+	}
+
+	obs_source_release(source);
+	obs_source_release(scene_source);
+	return item != nullptr;
+}

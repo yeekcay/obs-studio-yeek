@@ -28,6 +28,11 @@ public:
 	void SetOutputCallback(std::function<void(const std::string &)> callback);
 	void EmitLog(const std::string &text);
 
+	/* Audio level access for AudioSwitcherDock */
+	static float GetSourceMagnitudeDb(const std::string &sourceName);
+	static void EnsureAllVolmeters();
+	static bool EnsureSourceInScene(const std::string &sourceName, const std::string &sceneName);
+
 private:
 	PythonBridge() = default;
 	~PythonBridge() = default;

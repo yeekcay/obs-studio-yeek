@@ -13,6 +13,8 @@ target_sources(
     PythonBridge.hpp
     AgentDock.cpp
     AgentDock.hpp
+    AudioSwitcherDock.cpp
+    AudioSwitcherDock.hpp
 )
 
 target_link_libraries(
