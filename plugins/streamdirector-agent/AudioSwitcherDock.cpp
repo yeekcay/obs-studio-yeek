@@ -36,7 +36,12 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 	  videoTexrender_(nullptr),
 	  videoStaging_(nullptr),
 	  prevFrame_(nullptr),
-	  hasPrevFrame_(false)
+	  hasPrevFrame_(false),
+	  bitrateThresholdKbps_(2000),
+	  lastTotalBytes_(0),
+	  lastBitrateKbps_(0),
+	  lowBitrateSince_(0),
+	  streamQualitySwitched_(false)
 {
 	setObjectName("AudioSceneSwitcher");
 
@@ -178,6 +183,35 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 
 	mainLayout->addWidget(videoGroup);
 
+	/* --- Stream Quality Monitor (Optional) --- */
+	QGroupBox *streamGroup = new QGroupBox("Stream Quality Monitor (Optional)", container);
+	QVBoxLayout *streamLayout = new QVBoxLayout(streamGroup);
+
+	streamQualityEnableCheck_ = new QCheckBox("Enable low-bitrate scene switching", streamGroup);
+	streamLayout->addWidget(streamQualityEnableCheck_);
+
+	QGridLayout *streamGrid = new QGridLayout();
+	streamGrid->addWidget(new QLabel("Switch to scene:", streamGroup), 0, 0);
+	streamQualitySceneCombo_ = new QComboBox(streamGroup);
+	streamGrid->addWidget(streamQualitySceneCombo_, 0, 1);
+
+	bitrateThresholdLabel_ = new QLabel("2000 kbps", streamGroup);
+	bitrateThresholdSlider_ = new QSlider(Qt::Horizontal, streamGroup);
+	bitrateThresholdSlider_->setRange(500, 8000);
+	bitrateThresholdSlider_->setValue(2000);
+	bitrateThresholdSlider_->setSingleStep(100);
+	streamGrid->addWidget(new QLabel("Min bitrate:", streamGroup), 1, 0);
+	streamGrid->addWidget(bitrateThresholdSlider_, 1, 1);
+	streamGrid->addWidget(bitrateThresholdLabel_, 1, 2);
+
+	streamLayout->addLayout(streamGrid);
+
+	streamStatsLabel_ = new QLabel("Bitrate: --- kbps | Dropped: 0% | Congestion: 0.0", streamGroup);
+	streamStatsLabel_->setStyleSheet("font-family: monospace; font-size: 12px; padding: 4px;");
+	streamLayout->addWidget(streamStatsLabel_);
+
+	mainLayout->addWidget(streamGroup);
+
 	/* --- Log --- */
 	logDisplay_ = new QTextEdit(container);
 	logDisplay_->setReadOnly(true);
@@ -201,6 +235,8 @@ AudioSwitcherDock::AudioSwitcherDock(QWidget *parent)
 	connect(sustainSlider_, &QSlider::valueChanged, this, &AudioSwitcherDock::onSustainChanged);
 	connect(motionSensSlider_, &QSlider::valueChanged, this, &AudioSwitcherDock::onMotionSensitivityChanged);
 	connect(motionSustainSlider_, &QSlider::valueChanged, this, &AudioSwitcherDock::onMotionSustainChanged);
+	connect(streamQualityEnableCheck_, &QCheckBox::checkStateChanged, this, &AudioSwitcherDock::onStreamQualityEnableChanged);
+	connect(bitrateThresholdSlider_, &QSlider::valueChanged, this, &AudioSwitcherDock::onBitrateThresholdChanged);
 
 	/* Initial population */
 	PopulateScenes();
@@ -307,12 +343,13 @@ void AudioSwitcherDock::PopulateVideoSources()
 		},
 		videoSourceCombo_);
 
-	/* Scenes for video motion target */
+	/* Scenes for video motion target and stream quality target */
 	char **names = obs_frontend_get_scene_names();
 	if (names) {
 		char **cur = names;
 		while (*cur) {
 			videoSceneCombo_->addItem(*cur);
+			streamQualitySceneCombo_->addItem(*cur);
 			cur++;
 		}
 		bfree(names);
@@ -351,6 +388,19 @@ void AudioSwitcherDock::onMotionSustainChanged(int value)
 	motionSustainLabel_->setText(QString("%1 s").arg((double)value, 0, 'f', 1));
 }
 
+void AudioSwitcherDock::onStreamQualityEnableChanged(Qt::CheckState state)
+{
+	streamQualitySwitched_ = false;
+	lowBitrateSince_ = 0;
+	lastTotalBytes_ = 0;
+}
+
+void AudioSwitcherDock::onBitrateThresholdChanged(int value)
+{
+	bitrateThresholdKbps_ = value;
+	bitrateThresholdLabel_->setText(QString("%1 kbps").arg(value));
+}
+
 void AudioSwitcherDock::onStartClicked()
 {
 	if (running_)
@@ -380,6 +430,9 @@ void AudioSwitcherDock::onStartClicked()
 	bDominantSince_ = 0;
 	motionDominantSince_ = 0;
 	hasPrevFrame_ = false;
+	lowBitrateSince_ = 0;
+	lastTotalBytes_ = 0;
+	streamQualitySwitched_ = false;
 	switchCountLabel_->setText("Switches: 0");
 
 	startButton_->setEnabled(false);
@@ -561,6 +614,76 @@ void AudioSwitcherDock::onCheckLevels()
 			} else {
 				motionDominantSince_ = 0;
 			}
+		}
+	}
+
+	/* --- Stream Quality Monitor (independent path) --- */
+	if (streamQualityEnableCheck_->isChecked()) {
+		obs_output_t *output = obs_frontend_get_streaming_output();
+		if (output) {
+			uint64_t totalBytes = obs_output_get_total_bytes(output);
+			int dropped = obs_output_get_frames_dropped(output);
+			int totalFrames = obs_output_get_total_frames(output);
+			float congestion = obs_output_get_congestion(output);
+
+			/* Calculate bitrate from bytes delta over the check interval */
+			float bitrateKbps = 0;
+			uint64_t bytesDelta = 0;
+			if (lastTotalBytes_ > 0 && totalBytes > lastTotalBytes_) {
+				bytesDelta = totalBytes - lastTotalBytes_;
+				/* bytes / seconds * 8 / 1000 = kbps */
+				bitrateKbps = (float)bytesDelta / 2.0f * 8.0f / 1000.0f;
+			}
+			lastTotalBytes_ = totalBytes;
+			lastBitrateKbps_ = bitrateKbps;
+
+			float dropPct = (totalFrames > 0) ? (float)dropped / totalFrames * 100.0f : 0.0f;
+
+			QString statsColor = (bitrateKbps > 0 && bitrateKbps < bitrateThresholdKbps_) ? "color: #e44;" : "color: #4a9;";
+			streamStatsLabel_->setText(
+				QString("Bitrate: %1 kbps | Dropped: %2% | Congestion: %3")
+					.arg(bitrateKbps, 0, 'f', 0)
+					.arg(dropPct, 0, 'f', 1)
+					.arg(congestion, 0, 'f', 2));
+			streamStatsLabel_->setStyleSheet(
+				QString("font-family: monospace; font-size: 12px; padding: 4px; %1").arg(statsColor));
+
+			QString qualityScene = streamQualitySceneCombo_->currentText();
+
+			if (bitrateKbps > 0 && bitrateKbps < bitrateThresholdKbps_) {
+				if (lowBitrateSince_ == 0)
+					lowBitrateSince_ = now;
+
+				/* Switch after 4 seconds of low bitrate (2 checks) */
+				if (now - lowBitrateSince_ >= 4.0f && !streamQualitySwitched_ &&
+				    !qualityScene.isEmpty() && currentScene != qualityScene) {
+					Log(QString(">>> Low bitrate switch to '%1' (%2 kbps < %3 kbps)")
+						    .arg(qualityScene)
+						    .arg(bitrateKbps, 0, 'f', 0)
+						    .arg(bitrateThresholdKbps_));
+
+					obs_frontend_source_list scenes = {};
+					obs_frontend_get_scenes(&scenes);
+					for (size_t i = 0; i < scenes.sources.num; i++) {
+						const char *sname = obs_source_get_name(scenes.sources.array[i]);
+						if (sname && qualityScene == sname) {
+							obs_frontend_set_current_scene(scenes.sources.array[i]);
+							break;
+						}
+					}
+					obs_frontend_source_list_free(&scenes);
+
+					streamQualitySwitched_ = true;
+					switchCount_++;
+					switchCountLabel_->setText(QString("Switches: %1").arg(switchCount_));
+				}
+			} else if (bitrateKbps >= bitrateThresholdKbps_) {
+				/* Bitrate recovered - allow switching again */
+				lowBitrateSince_ = 0;
+				streamQualitySwitched_ = false;
+			}
+
+			obs_output_release(output);
 		}
 	}
 }

@@ -26,6 +26,8 @@ private slots:
 	void onSustainChanged(int value);
 	void onMotionSensitivityChanged(int value);
 	void onMotionSustainChanged(int value);
+	void onStreamQualityEnableChanged(Qt::CheckState state);
+	void onBitrateThresholdChanged(int value);
 
 private:
 	void PopulateScenes();
@@ -71,6 +73,13 @@ private:
 	QLabel *motionSustainLabel_;
 	QLabel *motionLevelLabel_;
 
+	/* Stream quality UI */
+	QCheckBox *streamQualityEnableCheck_;
+	QComboBox *streamQualitySceneCombo_;
+	QSlider *bitrateThresholdSlider_;
+	QLabel *bitrateThresholdLabel_;
+	QLabel *streamStatsLabel_;
+
 	/* State - audio */
 	float thresholdDb_;
 	float sustainSecs_;
@@ -91,4 +100,11 @@ private:
 	void *videoStaging_;
 	uint8_t *prevFrame_;
 	bool hasPrevFrame_;
+
+	/* State - stream quality */
+	int bitrateThresholdKbps_;
+	uint64_t lastTotalBytes_;
+	float lastBitrateKbps_;
+	float lowBitrateSince_;
+	bool streamQualitySwitched_;
 };
