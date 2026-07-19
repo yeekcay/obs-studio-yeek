@@ -12,6 +12,7 @@
 !/plugins
 !/shared
 !/test
+!/obs-agent
 !.cirrus.xml
 !.clang-format
 !.editorconfig

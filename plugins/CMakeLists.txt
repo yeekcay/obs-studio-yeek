@@ -58,6 +58,16 @@ add_obs_plugin(
     PLATFORMS WINDOWS MACOS LINUX
     WITH_MESSAGE
 )
+add_obs_plugin(
+    streamdirector-agent
+    PLATFORMS WINDOWS MACOS LINUX
+    WITH_MESSAGE
+)
+add_obs_plugin(
+    streamdirector-alerts
+    PLATFORMS WINDOWS MACOS LINUX
+    WITH_MESSAGE
+)
 add_obs_plugin(image-source)
 add_obs_plugin(linux-alsa PLATFORMS LINUX FREEBSD OPENBSD)
 add_obs_plugin(linux-capture PLATFORMS LINUX FREEBSD OPENBSD)
@@ -104,3 +114,7 @@ add_obs_plugin(vlc-video WITH_MESSAGE)
 add_obs_plugin(win-capture PLATFORMS WINDOWS)
 add_obs_plugin(win-dshow PLATFORMS WINDOWS)
 add_obs_plugin(win-wasapi PLATFORMS WINDOWS)
+
+# Aitum plugins
+add_obs_plugin(obs-vertical-canvas PLATFORMS WINDOWS MACOS LINUX WITH_MESSAGE)
+add_obs_plugin(obs-aitum-multistream PLATFORMS WINDOWS MACOS LINUX WITH_MESSAGE)

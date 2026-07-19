@@ -1,0 +1,82 @@
+{
+  "alerts": {
+    "channel.follow": {
+      "enabled": true,
+      "title": "New Follower!",
+      "message": "Welcome {user_name}!",
+      "image": "",
+      "emoji": "❤️",
+      "color": "#9b59b6",
+      "sound": "",
+      "duration": 6000
+    },
+    "channel.cheer": {
+      "enabled": true,
+      "title": "{user_name} cheered {bits} bits!",
+      "message": "Thanks for the bits!",
+      "image": "",
+      "emoji": "👏",
+      "color": "#f39c12",
+      "sound": "",
+      "duration": 5000
+    },
+    "channel.subscribe": {
+      "enabled": true,
+      "title": "New Subscriber!",
+      "message": "Thanks for subscribing, {user_name}!",
+      "image": "",
+      "emoji": "⭐",
+      "color": "#3498db",
+      "sound": "",
+      "duration": 8000
+    },
+    "channel.subscription.message": {
+      "enabled": true,
+      "title": "{user_name} resubscribed!",
+      "message": "{cumulative_months} months strong!",
+      "image": "",
+      "emoji": "🔥",
+      "color": "#3498db",
+      "sound": "",
+      "duration": 8000
+    },
+    "channel.subscription.gift": {
+      "enabled": true,
+      "title": "{user_name} gifted {gift_count} subs!",
+      "message": "What generosity!",
+      "image": "",
+      "emoji": "🎁",
+      "color": "#2ecc71",
+      "sound": "",
+      "duration": 8000
+    },
+    "channel.raid": {
+      "enabled": true,
+      "title": "{from_broadcaster_user_name} is raiding!",
+      "message": "with {viewers} raiders!",
+      "image": "",
+      "emoji": "🚗",
+      "color": "#e74c3c",
+      "sound": "",
+      "duration": 8000
+    },
+    "channel.channel_points_custom_reward_redemption.add": {
+      "enabled": true,
+      "title": "{user_name} redeemed a reward!",
+      "message": "{reward_title}",
+      "image": "",
+      "emoji": "🏆",
+      "color": "#f1c40f",
+      "sound": "",
+      "duration": 5000
+    }
+  },
+  "global": {
+    "font": "Segoe UI, Verdana, sans-serif",
+    "title_size": "28px",
+    "message_size": "16px",
+    "image_size": "120px",
+    "animation_in": "0.5s",
+    "animation_out": "0.5s"
+  }
+}

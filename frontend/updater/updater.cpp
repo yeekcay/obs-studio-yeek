@@ -427,7 +427,7 @@ bool DownloadWorkerThread()
 
 	const DWORD compressionFlags = WINHTTP_DECOMPRESSION_FLAG_ALL;
 
-	HttpHandle hSession = WinHttpOpen(L"OBS Studio Updater/3.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+	HttpHandle hSession = WinHttpOpen(L"StreamDirector Updater/3.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
 					  WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
 	if (!hSession) {
 		downloadThreadFailure = true;
@@ -1213,7 +1213,7 @@ static bool UpdateVSRedists()
 
 	const DWORD compressionFlags = WINHTTP_DECOMPRESSION_FLAG_ALL;
 
-	HttpHandle hSession = WinHttpOpen(L"OBS Studio Updater/3.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+	HttpHandle hSession = WinHttpOpen(L"StreamDirector Updater/3.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
 					  WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
 	if (!hSession) {
 		Status(L"VC Redist Update failed: Couldn't create session");
@@ -1317,7 +1317,7 @@ static bool UpdateVSRedists()
 
 static void UpdateRegistryVersion(const Manifest &manifest)
 {
-	const char *regKey = R"(Software\Microsoft\Windows\CurrentVersion\Uninstall\OBS Studio)";
+	const char *regKey = R"(Software\Microsoft\Windows\CurrentVersion\Uninstall\StreamDirector)";
 	LSTATUS res;
 	HKEY key;
 	char version[32];
@@ -1488,7 +1488,7 @@ static bool Update(wchar_t *cmdLine)
 		Status(L"Update failed: Failed to get temp path: %ld", GetLastError());
 		return false;
 	}
-	if (!GetTempFileNameW(tempDirName, L"obs-studio", 0, tempPath)) {
+	if (!GetTempFileNameW(tempDirName, L"streamdirector", 0, tempPath)) {
 		Status(L"Update failed: Failed to create temp dir name: %ld", GetLastError());
 		return false;
 	}
@@ -2079,7 +2079,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR lpCmdLine, int)
 
 	if (!IsWindows10OrGreater()) {
 		MessageBox(nullptr,
-			   L"OBS Studio 28 and newer no longer support Windows 7,"
+			   L"StreamDirector 28 and newer no longer support Windows 7,"
 			   L" Windows 8, or Windows 8.1. You can disable the"
 			   L" following setting to opt out of future updates:"
 			   L" Settings → General → General → Automatically check"
@@ -2092,7 +2092,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR lpCmdLine, int)
 
 		WinHandle hMutex = OpenMutex(SYNCHRONIZE, false, L"OBSUpdaterRunningAsNonAdminUser");
 		if (hMutex) {
-			MessageBox(nullptr, L"OBS Studio Updater must be run as an administrator.", L"Updater Error",
+			MessageBox(nullptr, L"StreamDirector Updater must be run as an administrator.", L"Updater Error",
 				   MB_ICONWARNING);
 			return 2;
 		}

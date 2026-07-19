@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="alerts.css" />
+<title>StreamDirector Alerts</title>
+</head>
+<body>
+<div id="alertContainer"></div>
+
+<div id="statusOverlay">
+  <div class="status-title">StreamDirector Alerts</div>
+  <div id="statusText">Waiting for backend...</div>
+  <div class="status-hint">Connect from the dock settings above</div>
+</div>
+
+<audio id="alertSound"></audio>
+
+<template id="alertTemplate">
+  <div class="alert bounce-in">
+    <div class="alert-image-wrapper">
+      <img src="" class="alert-image bounce-in-img" />
+    </div>
+    <div class="alert-details">
+      <div class="alert-title"></div>
+      <div class="alert-message"></div>
+    </div>
+  </div>
+</template>
+
+<script src="alerts.js"></script>
+</body>
+</html>

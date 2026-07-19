@@ -7,3 +7,12 @@
 [submodule "plugins/obs-websocket"]
 	path = plugins/obs-websocket
 	url = https://github.com/obsproject/obs-websocket.git
+[submodule "obs-agent"]
+	path = obs-agent
+	url = https://github.com/haasonsaas/obs-agent.git
+[submodule "plugins/obs-aitum-multistream"]
+	path = plugins/obs-aitum-multistream
+	url = https://github.com/Aitum/obs-aitum-multistream.git
+[submodule "plugins/obs-vertical-canvas"]
+	path = plugins/obs-vertical-canvas
+	url = https://github.com/Aitum/obs-vertical-canvas.git

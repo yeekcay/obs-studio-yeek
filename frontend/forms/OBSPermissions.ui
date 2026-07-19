@@ -27,7 +27,7 @@
   </property>
   <property name="windowIcon">
    <iconset resource="obs.qrc">
-    <normaloff>:/res/images/obs.png</normaloff>:/res/images/obs.png</iconset>
+    <normaloff>:/res/images/streamdirector.png</normaloff>:/res/images/streamdirector.png</iconset>
   </property>
   <property name="styleSheet">
    <string notr="true"/>

@@ -278,7 +278,7 @@ int StudioImporter::ImportScenes(const string &path, string &name, Json &res)
 	if (name != "") {
 		obj["name"] = name;
 	} else {
-		obj["name"] = "OBS Studio Import";
+		obj["name"] = "StreamDirector Import";
 	}
 
 	res = obj;
